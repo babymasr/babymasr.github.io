@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { resetPw, signIn, signInGoogle, signOutNow, signUp, useSync } from './sync';
+import { importGuestData, resetPw, signIn, signInGoogle, signOutNow, signUp, useSync } from './sync';
 
 const MSG: Record<string, string> = {
     'auth/invalid-email': 'الإيميل مش مكتوب صح.',
@@ -11,6 +11,7 @@ const MSG: Record<string, string> = {
     'auth/wrong-password': 'كلمة السر غلط.',
     'auth/too-many-requests': 'محاولات كتير. استني شوية وجربي تاني.',
     'auth/network-request-failed': 'مفيش نت دلوقتي. جربي تاني لما النت يرجع.',
+    'bm/unsynced': 'مفيش نت دلوقتي وفي تغييرات لسه ما اتحفظتش على حسابك. لو خرجتي دلوقتي هتضيع. استني لما النت يرجع، أو دوسي "خروج بدون حفظ".',
     'auth/popup-closed-by-user': 'اتقفلت نافذة جوجل قبل ما تخلص.',
     'auth/popup-blocked': 'المتصفح منع نافذة جوجل. جربي بالإيميل.',
     'auth/unauthorized-domain': 'الدومين ده مش مفعّل لتسجيل جوجل. جربي بالإيميل.',
@@ -25,6 +26,7 @@ export function Account() {
     const [pw, setPw] = useState('');
     const [busy, setBusy] = useState(false);
     const [msg, setMsg] = useState('');
+    const [force, setForce] = useState(false);
     if (!s.configured) return null;
     const run = async (fn: () => Promise<void>, ok?: string) => {
         setBusy(true); setMsg('');

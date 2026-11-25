@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { firebaseConfig } from './firebase-config';
-import { SYNC_KEYS, onLocalWrite, readRaw, writeRaw } from './storage';
+import { SYNC_KEYS, clearAccountCache, getScope, hasGuestData, onLocalWrite, readGuestRaw, readRaw, setScope, writeRaw } from './storage';
 
-export type SyncState = { ready: boolean; configured: boolean; email: string | null; status: 'off' | 'syncing' | 'synced' | 'error' | 'offline' };
-let state: SyncState = { ready: false, configured: !!firebaseConfig, email: null, status: 'off' };
+export type SyncState = { ready: boolean; configured: boolean; email: string | null; status: 'off' | 'syncing' | 'synced' | 'error' | 'offline'; guestData: boolean };
+let state: SyncState = { ready: false, configured: !!firebaseConfig, email: null, status: 'off', guestData: false };
 const subs = new Set<(s: SyncState) => void>();
 function set(p: Partial<SyncState>) { state = { ...state, ...p }; subs.forEach(f => f(state)); }
 export function useSync(): SyncState {
@@ -61,14 +61,27 @@ export function initSync() {
         fb = mod;
         mod.watchAuth(async user => {
             if (unsub) { unsub(); unsub = null; }
-            if (!user) { uid = null; set({ ready: true, email: null, status: 'off' }); return; }
+            if (timer) { clearTimeout(timer); timer = null; }
+            if (!user) {
+                const prev = getScope();
+                uid = null;
+                if (prev) clearAccountCache(prev);
+                setScope(null);
+                set({ ready: true, email: null, status: 'off', guestData: false });
+                return;
+            }
+            // Signed in: switch to this account's own data space. Guest data is never read or uploaded here.
+            const prev = getScope();
+            if (prev && prev !== user.uid) clearAccountCache(prev);
+            setScope(user.uid);
             uid = user.uid;
-            set({ ready: true, email: user.email, status: 'syncing' });
+            set({ ready: true, email: user.email, status: 'syncing', guestData: hasGuestData() });
             try {
                 const remote = await mod.loadDoc(user.uid);
+                if (uid !== user.uid) return;
                 const needPush = applyRemote(remote as never);
                 if (needPush) await push(); else set({ status: 'synced' });
-                unsub = mod.listenDoc(user.uid, d => { if (d) { const n = applyRemote(d as never); if (n) schedulePush(); else set({ status: 'synced' }); } });
+                unsub = mod.listenDoc(user.uid, d => { if (uid !== user.uid) return; if (d) { const n = applyRemote(d as never); if (n) schedulePush(); else set({ status: 'synced' }); } });
             } catch { set({ status: navigator.onLine ? 'error' : 'offline' }); }
         });
     }).catch(() => set({ ready: true }));
@@ -78,4 +91,21 @@ export async function signUp(email: string, pw: string) { await fb!.signUp(email
 export async function signIn(email: string, pw: string) { await fb!.signIn(email, pw); }
 export async function signInGoogle() { await fb!.signInGoogle(); }
 export async function resetPw(email: string) { await fb!.resetPw(email); }
-export async function signOutNow() { await fb!.signOutNow(); }
+/** Save pending changes, then sign out. Throws 'bm/unsynced' if the save failed and `force` is false. */
+export async function signOutNow(force = false) {
+    if (uid && !force) {
+        if (timer) { clearTimeout(timer); timer = null; }
+        await push();
+        if (state.status !== 'synced') throw Object.assign(new Error('unsynced'), { code: 'bm/unsynced' });
+    }
+    await fb!.signOutNow();
+}
+
+/** Explicit, user-chosen import of this phone's guest data into the signed-in account. Only fills sections the account has not got yet. */
+export function importGuestData(): number {
+    if (!uid) return 0;
+    let n = 0;
+    SYNC_KEYS.forEach(k => { const g = readGuestRaw(k); if (g != null && readRaw(k) == null) { writeRaw(k, g); n++; } });
+    set({ guestData: hasGuestData() });
+    return n;
+}
