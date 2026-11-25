@@ -3,6 +3,8 @@
 Mobile PWA for Egyptian moms: sleep sounds + timer, feeding/diaper log, Ministry of Health vaccine schedule, milestones, channel videos.
 Arabic RTL, dark theme. Works offline, installable, optional login with sync (Firebase free plan).
 
+دليل التعديل بالعربي للمبتدئين: [README-AR.md](README-AR.md)
+
 Live: https://babymasr.github.io/
 
 ## Develop
