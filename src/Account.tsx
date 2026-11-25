@@ -41,8 +41,11 @@ export function Account() {
         </button>
         {open && (s.email ? <div className="bm-form">
             <p className="bm-note">{STATUS[s.status]}</p>
-            <button type="button" className="bm-btn bm-ghost" disabled={busy} onClick={() => run(signOutNow)}>تسجيل الخروج</button>
-            <p className="bm-note">لو خرجتي، بياناتك بتفضل على الموبايل ده وعلى حسابك.</p>
+            {s.guestData && <><p className="bm-note">فيه بيانات محفوظة على الموبايل ده من غير حساب. مش هتتنقل لحسابك إلا لو اخترتي كده.</p>
+            <button type="button" className="bm-btn bm-ghost" disabled={busy} onClick={() => { if (window.confirm('تنقلي بيانات الموبايل ده (سجل الرضاعة والتطعيمات...) لحسابك ' + (s.email || '') + '؟ ده بيحصل للأقسام الفاضية في حسابك بس.')) { const k = importGuestData(); setMsg(k ? 'اتنقلت بيانات الموبايل لحسابك.' : 'حسابك فيه بيانات بالفعل، فمفيش حاجة اتنقلت.'); } }}>نقل بيانات الموبايل لحسابي</button></>}
+            <button type="button" className="bm-btn bm-ghost" disabled={busy} onClick={() => run(async () => { try { await signOutNow(force); setForce(false); } catch (e) { if ((e as { code?: string }).code === 'bm/unsynced') setForce(true); throw e; } })}>تسجيل الخروج</button>
+            {force && <button type="button" className="bm-btn bm-ghost" disabled={busy} onClick={() => run(async () => { await signOutNow(true); setForce(false); })}>خروج بدون حفظ</button>}
+            <p className="bm-note">لما تخرجي، بيانات حسابك بتتمسح من الموبايل ده وبتفضل محفوظة على حسابك. أي حد تاني يدخل على الموبايل مش هيشوفها.</p>
         </div> : <form className="bm-form" onSubmit={e => { e.preventDefault(); run(() => (mode === 'up' ? signUp(email.trim(), pw) : signIn(email.trim(), pw))); }}>
             <p className="bm-note">من غير حساب التطبيق بيشتغل عادي وبياناتك على الموبايل ده بس.</p>
             <label>الإيميل<input type="email" dir="ltr" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required /></label>
